@@ -2,16 +2,16 @@ OUTDIR := build
 BOOTLOADER_DIR := boot
 KERNEL_DIR := kernel
 TARGET_NAME := "x86_64-unknown-none"
-KERNEL_BUILD_OUT := target/$(TARGET_NAME)/release/kernel
+#KERNEL_BUILD_OUT := target/$(TARGET_NAME)/release/kernel
 
 NAME := osdev.bin
 
 all: $(NAME)
 
-$(NAME): bootloader kern
+$(NAME): kern
 	# @cat $(OUTDIR)/boot.bin $(OUTDIR)/kernel.bin > $(OUTDIR)/os.bin
-	ld -T linker.ld -o $(OUTDIR)/os.elf $(OUTDIR)/boot.o $(OUTDIR)/kernel.elf
-	@objcopy -O binary $(OUTDIR)/os.elf $(OUTDIR)/os.bin
+	# ld -T linker.ld -o $(OUTDIR)/os.elf $(OUTDIR)/boot.o $(OUTDIR)/kernel.elf
+	# @objcopy -O binary $(OUTDIR)/os.elf $(OUTDIR)/os.bin
 
 
 
@@ -23,12 +23,13 @@ bootloader:
 	@echo "Bootloader compiled successfully!"
 
 kern:
+	@mkdir -p $(OUTDIR)
 	@cargo build -Z build-std=core --release --target x86_64-unknown-none
 	@echo "Kernel compiled successfully"
-	@rm -f $(OUTDIR)/kernel.elf
-	@mv $(KERNEL_BUILD_OUT) $(OUTDIR)/kernel.elf
+	#@rm -f $(OUTDIR)/kernel.elf
+	#@mv $(KERNEL_BUILD_OUT) $(OUTDIR)/kernel.elf
 
-run:
+run: kern
 	qemu-system-x86_64 -drive file=$(OUTDIR)/os.bin,format=raw
 
 nix-run: $(NAME)
