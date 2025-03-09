@@ -1,75 +1,47 @@
-# Variables
-ODIR := obj
-BDIR := bin
-NAME := $(BDIR)/kxos.iso
-WD := $(shell pwd)
-REMOTE_SERVER_IP :=
+OUTDIR := build
+BOOTLOADER_DIR := boot
 KERNEL_DIR := kernel
-KERNEL_SRC := $(shell find $(KERNEL_DIR) -name '*.c')
-KERNEL_SRC_ASM := $(shell find $(KERNEL_DIR) -name '*.asm')
-KERNEL_OBJ := $(patsubst $(KERNEL_DIR)/%.c,$(ODIR)/%.o,$(KERNEL_SRC))
-KERNEL_OBJ_ASM := $(patsubst $(KERNEL_DIR)/%.asm,$(ODIR)/%.o,$(KERNEL_SRC_ASM))
+TARGET_NAME := "x86_64-unknown-none"
+KERNEL_BUILD_OUT := target/$(TARGET_NAME)/release/kernel
 
-# Compilation Flags
-CFLAGS := -ffreestanding -m32 -fno-pie -fno-stack-protector -g -mgeneral-regs-only -mno-red-zone
-NASMFLAGS := -f elf32 -g
+NAME := osdev.bin
 
-# Main Targets
 all: $(NAME)
 
-$(NAME): bootloader kernel
-	@mkdir -p $(BDIR)
-	@cat $(ODIR)/boot.bin $(ODIR)/kernel.bin > $(ODIR)/combined.bin
-	@truncate $(ODIR)/combined.bin -s 1200k
-	@genisoimage -o $(NAME) -input-charset iso8859-1 -b $(ODIR)/combined.bin .
-	@echo "ISO image compiled successfully!"
+$(NAME): bootloader kern
+	# @cat $(OUTDIR)/boot.bin $(OUTDIR)/kernel.bin > $(OUTDIR)/os.bin
+	ld -T linker.ld -o $(OUTDIR)/os.elf $(OUTDIR)/boot.o $(OUTDIR)/kernel.elf
+	@objcopy -O binary $(OUTDIR)/os.elf $(OUTDIR)/os.bin
 
-# Bootloader Targets
+
+
+
 bootloader:
-	@mkdir -p $(ODIR)
-	@nasm -f bin boot/boot.asm -o $(ODIR)/boot.bin
+	@mkdir -p $(OUTDIR)
+	nasm -f elf64 $(BOOTLOADER_DIR)/boot.asm -o $(OUTDIR)/boot.o
 	@echo "Compiled boot.asm"
 	@echo "Bootloader compiled successfully!"
 
-# Kernel Targets
-kernel: $(KERNEL_OBJ) $(KERNEL_OBJ_ASM)
-	@echo "Linking " $(KERNEL_OBJ) $(KERNEL_OBJ_ASM) " into kernel.elf..."
-	@ld -o $(ODIR)/kernel.elf -T linker.ld $(KERNEL_OBJ) $(KERNEL_OBJ_ASM) -m elf_i386
-	@echo "Converting kernel.elf to kernel.bin..."
-	@objcopy -O binary $(ODIR)/kernel.elf $(ODIR)/kernel.bin
-	@echo "Kernel compiled successfully!"
+kern:
+	@cargo build -Z build-std=core --release --target x86_64-unknown-none
+	@echo "Kernel compiled successfully"
+	@rm -f $(OUTDIR)/kernel.elf
+	@mv $(KERNEL_BUILD_OUT) $(OUTDIR)/kernel.elf
 
-$(ODIR)/%.o: $(KERNEL_DIR)/%.c
-	@echo "Compiling $<..."
-	@mkdir -p $(@D)
-	@gcc -Ikernel $(CFLAGS) -c $< -o $@
+run:
+	qemu-system-x86_64 -drive file=$(OUTDIR)/os.bin,format=raw
 
-$(ODIR)/%.o: $(KERNEL_DIR)/%.asm
-	@echo "Compiling $<..."
-	@mkdir -p $(@D)
-	@nasm $(NASMFLAGS) $< -o $@
+nix-run: $(NAME)
+	nix-shell --run "make run"
 
-# Utility Targets
+
+
 clean:
-	@rm -rf $(ODIR)
-	@rm -rf $(BDIR)
-	@echo "Cleaned up project!"
+	rm -rf target
+	rm -rf $(KERNEL_DIR)/target
+	rm -rf build
 
-re: clean all
 
-debug: $(NAME)
-	@qemu-system-i386 -s -S -cdrom $(NAME)
 
-run: $(NAME)
-	@qemu-system-i386 -cdrom $(NAME)
-
-upload:
-	@rsync -avz -e 'ssh' $(WD) $(REMOTE_SERVER_IP):/tmp
-	@ssh $(REMOTE_SERVER_IP) "cd /tmp/KXOS && make fclean && make"
-	@rsync -avz -e 'ssh' $(REMOTE_SERVER_IP):/tmp/KXOS/$(ODIR) $(WD)
-	@rsync -avz -e 'ssh' $(REMOTE_SERVER_IP):/tmp/KXOS/$(BDIR) $(WD)
-
-uploadandrun: upload run
-
-.PHONY: all clean fclean re run kernel bootloader upload uploadandrun
-.NOTPARALLEL: uploadandrun
+PHONY: bootloader kernel
+NONPARELLEL: clean all

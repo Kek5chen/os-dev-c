@@ -1,0 +1,21 @@
+[package]
+name = "os"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[workspace]
+resolver = "2"
+members = [ "kernel" ]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+strip = true
+opt-level = 0
+
+[build-dependencies]
+bootloader = "0.11.10"
+osdev-kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }

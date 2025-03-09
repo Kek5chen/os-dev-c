@@ -13,7 +13,7 @@ SECTIONS
 
     .text :
     {
-        *(.text.kernel_entry)
+        *(.text.__kernel_entry)
         *(.text)
     }
 
